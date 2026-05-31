@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一人公司财务仪表盘</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+    <nav class="bg-indigo-700 text-white p-4 shadow-lg">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <h1 class="text-xl font-bold"><i class="fa fa-line-chart mr-2"></i>一人公司财务仪表盘</h1>
+            <div class="space-x-4 text-sm">
+                <button onclick="showTab('dashboard')" class="tab-btn px-3 py-1 rounded bg-indigo-500">仪表盘</button>
+                <button onclick="showTab('records')" class="tab-btn px-3 py-1 rounded hover:bg-indigo-500">流水记录</button>
+                <button onclick="showTab('add')" class="tab-btn px-3 py-1 rounded hover:bg-indigo-500"><i class="fa fa-plus"></i> 新增</button>
+                <button onclick="showTab('compare')" class="tab-btn px-3 py-1 rounded hover:bg-indigo-500">月度对比</button>
+                <button onclick="showTab('project')" class="tab-btn px-3 py-1 rounded hover:bg-indigo-500">项目分析</button>
+                <button onclick="showTab('tax')" class="tab-btn px-3 py-1 rounded hover:bg-indigo-500"><i class="fa fa-calculator"></i> 税务预估</button>
+            </div>
+        </div>
+    </nav>
+    <div class="max-w-6xl mx-auto p-4">
+        <!-- 仪表盘 -->
+        <div id="tab-dashboard" class="tab-content">
+            <!-- 核心指标 -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div class="bg-white rounded-xl shadow p-5 text-center"><div class="text-gray-500 text-sm">总收入</div><div id="totalIncome" class="text-2xl font-bold text-green-600">¥0</div></div>
+                <div class="bg-white rounded-xl shadow p-5 text-center"><div class="text-gray-500 text-sm">总支出</div><div id="totalExpense" class="text-2xl font-bold text-red-600">¥0</div></div>
+                <div class="bg-white rounded-xl shadow p-5 text-center"><div class="text-gray-500 text-sm">现金流</div><div id="netCashflow" class="text-2xl font-bold text-indigo-600">¥0</div></div>
+                <div class="bg-white rounded-xl shadow p-5 text-center"><div class="text-gray-500 text-sm">财务健康度</div><div id="healthScore" class="text-2xl font-bold text-emerald-600">-</div></div>
+                <div class="bg-white rounded-xl shadow p-5 text-center" id="cashflowAlert"><div class="text-gray-500 text-sm">现金流预警</div><div id="cashflowWarning" class="text-2xl font-bold">-</div></div>
+            </div>
+
+            <!-- 现金流预警阈值设置 -->
+            <div class="bg-white rounded-xl shadow p-4 mb-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-sm"><i class="fa fa-bell mr-2 text-indigo-600"></i>现金流预警阈值</h3>
+                </div>
+                <div class="flex gap-3 items-center">
+                    <label class="text-sm text-gray-600">预警阈值 (¥)</label>
+                    <input type="number" id="cashflowThreshold" class="border rounded p-2 text-sm w-24" value="5000" onchange="saveThreshold(); renderDashboard();">
+                    <span class="text-xs text-gray-400">低于此值将高亮预警</span>
+                </div>
+            </div>
+
+            <!-- 图表 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white rounded-xl shadow p-5"><h3 class="font-bold mb-3"><i class="fa fa-line-chart mr-2 text-indigo-600"></i>收支趋势</h3><canvas id="trendChart" height="200"></canvas></div>
+                <div class="bg-white rounded-xl shadow p-5"><h3 class="font-bold mb-3"><i class="fa fa-pie-chart mr-2 text-indigo-600"></i>支出分类</h3><canvas id="pieChart" height="200"></canvas></div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow p-5 mb-6">
+                <h3 class="font-bold mb-3"><i class="fa fa-bar-chart mr-2 text-indigo-600"></i>月度利润柱状图</h3><canvas id="barChart" height="180"></canvas></div>
+
+            <div class="bg-white rounded-xl shadow p-5 mb-6">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold"><i class="fa fa-table mr-2 text-indigo-600"></i>年度统计</h3>
+                    <div class="flex gap-2">
+                        <button onclick="setYear(-1)" class="px-3 py-1 bg-gray-100 rounded text-sm"><i class="fa fa-chevron-left"></i></button>
+                        <span id="yearDisplay" class="px-4 py-1 font-bold"></span>
+                        <button onclick="setYear(1)" class="px-3 py-1 bg-gray-100 rounded text-sm"><i class="fa fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-gray-100"><th class="p-2 text-left">月份</th><th class="p-2 text-right">收入</th><th class="p-2 text-right">支出</th><th class="p-2 text-right">结余</th><th class="p-2 text-right">环比</th></tr></thead><tbody id="yearTable"></tbody></table></div>
+            </div>
+            <div class="text-center"><button onclick="exportCSV()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"><i class="fa fa-download mr-2"></i>导出CSV</button></div>
+        </div>
+
+        <!-- 流水记录 -->
+        <div id="tab-records" class="tab-content hidden">
+            <div class="bg-white rounded-xl shadow p-5">
+                <h3 class="font-bold mb-4"><i class="fa fa-list mr-2 text-indigo-600"></i>所有流水</h3>
+                <div class="mb-4 flex flex-wrap gap-2"><select id="filterType" onchange="renderRecords()" class="border rounded p-2 text-sm"><option value="all">全部</option><option value="income">收入</option><option value="expense">支出</option></select><select id="filterCategory" onchange="renderRecords()" class="border rounded p-2 text-sm"><option value="all">全部分类</option></select><button onclick="clearAllData()" class="bg-red-500 text-white px-4 py-2 rounded text-sm hover:bg-red-600"><i class="fa fa-trash mr-1"></i>清空数据</button></div>
+                <div id="recordsList" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- 新增 -->
+        <div id="tab-add" class="tab-content hidden">
+            <div class="bg-white rounded-xl shadow p-5 max-w-lg mx-auto">
+                <h3 class="font-bold mb-4"><i class="fa fa-plus-circle mr-2 text-indigo-600"></i>新增流水</h3>
+                <div class="space-y-4">
+                    <div><label class="block text-sm text-gray-600 mb-1">类型</label><select id="recordType" onchange="updateCategories()" class="w-full border rounded p-2"><option value="income">收入</option><option value="expense">支出</option></select></div>
+                    <div><label class="block text-sm text-gray-600 mb-1">分类</label><select id="recordCategory" class="w-full border rounded p-2"></select></div>
+                    <div><label class="block text-sm text-gray-600 mb-1">金额 (¥)</label><input type="number" id="recordAmount" class="w-full border rounded p-2" placeholder="0.00"></div>
+                    <div><label class="block text-sm text-gray-600 mb-1">日期</label><input type="date" id="recordDate" class="w-full border rounded p-2"></div>
+                    <div><label class="block text-sm text-gray-600 mb-1">备注</label><input type="text" id="recordNote" class="w-full border rounded p-2" placeholder="可选备注"></div>
+                    <button onclick="addRecord()" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700"><i class="fa fa-save mr-2"></i>保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 月度对比 -->
+        <div id="tab-compare" class="tab-content hidden">
+            <div class="bg-white rounded-xl shadow p-5 max-w-2xl mx-auto">
+                <h3 class="font-bold mb-4"><i class="fa fa-exchange mr-2 text-indigo-600"></i>月度对比分析</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div><label class="block text-sm text-gray-600 mb-1">月份A</label><input type="month" id="compareMonthA" class="w-full border rounded p-2"></div>
+                    <div><label class="block text-sm text-gray-600 mb-1">月份B</label><input type="month" id="compareMonthB" class="w-full border rounded p-2"></div>
+                </div>
+                <button onclick="compareMonths()" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 mb-4"><i class="fa fa-search mr-2"></i>开始对比</button>
+                <div id="compareResult" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- 项目收支分析 -->
+        <div id="tab-project" class="tab-content hidden">
+            <div class="mb-6">
+                <div class="bg-white rounded-xl shadow p-5">
+                    <h3 class="font-bold mb-4"><i class="fa fa-folder-open mr-2 text-indigo-600"></i>项目收支分析</h3>
+                    <p class="text-sm text-gray-500 mb-4">按收入分类统计各项目的收入、支出和利润情况</p>
+                    <div id="projectTable" class="overflow-x-auto mb-6"></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <canvas id="projectBarChart" height="220"></canvas>
+                        <canvas id="projectPieChart" height="220"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 税务预估 -->
+        <div id="tab-tax" class="tab-content hidden">
+            <div class="max-w-2xl mx-auto space-y-6">
+                <div class="bg-white rounded-xl shadow p-5">
+                    <h3 class="font-bold mb-4"><i class="fa fa-calculator mr-2 text-indigo-600"></i>税务预估</h3>
+                    <p class="text-sm text-gray-500 mb-4">基于年度收入和支出，自动估算应缴税费。此为估算值，实际缴税请咨询专业会计师。</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">纳税人类型</label>
+                            <select id="taxType" onchange="calcTax()" class="w-full border rounded p-2">
+                                <option value="individual">个体工商户（小规模）</option>
+                                <option value="company_small">有限公司（小规模纳税人）</option>
+                                <option value="company_general">有限公司（一般纳税人）</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">年度选择</label>
+                            <select id="taxYear" onchange="calcTax()" class="w-full border rounded p-2"></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">扣除项（社保/专项附加等）</label>
+                            <input type="number" id="taxDeduction" onchange="calcTax()" class="w-full border rounded p-2" value="36000" placeholder="年度可扣除总额">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-1">增值税类型</label>
+                            <select id="vatType" onchange="calcTax()" class="w-full border rounded p-2">
+                                <option value="small">小规模（3%减按1%）</option>
+                                <option value="general">一般（6%/13%）</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="taxResult" class="space-y-4"></div>
+                </div>
+                <div class="bg-amber-50 rounded-xl p-4 border border-amber-200 text-sm text-amber-800">
+                    <i class="fa fa-info-circle mr-1"></i>
+                    <strong>免责声明：</strong>税务预估仅供参考，实际税负因地区政策、行业、具体业务类型等因素可能有所不同。建议在实际申报前咨询专业税务顾问或会计师。
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const CATEGORIES = { income: ['产品销售', '咨询服务', '课程收入', '广告收入', '合作分成', '其他收入'], expense: ['产品开发', '营销推广', '运营成本', '生活开支', '工具订阅', '其他支出'] };
+        let records = JSON.parse(localStorage.getItem('financeRecords') || '[]');
+        let currentYear = new Date().getFullYear();
+        let cashflowThreshold = parseFloat(localStorage.getItem('cashflowThreshold') || '5000');
+        let trendChartInstance, pieChartInstance, barChartInstance;
+        let projectBarChartInstance, projectPieChartInstance;
+
+        document.getElementById('cashflowThreshold').value = cashflowThreshold;
+
+        function saveThreshold() {
+            cashflowThreshold = parseFloat(document.getElementById('cashflowThreshold').value) || 5000;
+            localStorage.setItem('cashflowThreshold', cashflowThreshold);
+        }
+
+        function save() { localStorage.setItem('financeRecords', JSON.stringify(records)); }
+
+        function showTab(name) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.className = 'tab-btn px-3 py-1 rounded hover:bg-indigo-500');
+            document.getElementById('tab-' + name).classList.remove('hidden');
+            if (name === 'dashboard') { renderDashboard(); } else if (name === 'records') { renderRecords(); } else if (name === 'compare') { initCompareMonths(); } else if (name === 'project') { renderProjectAnalysis(); } else if (name === 'tax') { calcTax(); }
+        }
+
+        function updateCategories() {
+            const type = document.getElementById('recordType').value;
+            const sel = document.getElementById('recordCategory');
+            sel.innerHTML = CATEGORIES[type].map(c => `<option value="${c}">${c}</option>`).join('');
+            const filterSel = document.getElementById('filterCategory');
+            filterSel.innerHTML = '<option value="all">全部分类</option>' + CATEGORIES[type].concat(CATEGORIES.expense).map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+
+        function addRecord() {
+            const type = document.getElementById('recordType').value;
+            const category = document.getElementById('recordCategory').value;
+            const amount = parseFloat(document.getElementById('recordAmount').value);
+            const date = document.getElementById('recordDate').value;
+            const note = document.getElementById('recordNote').value;
+            if (!amount || !date) { alert('请填写金额和日期'); return; }
+            records.push({ id: Date.now(), type, category, amount, date, note, createdAt: new Date().toISOString() });
+            save(); renderRecords(); showTab('records');
+            document.getElementById('recordAmount').value = ''; document.getElementById('recordNote').value = '';
+        }
+
+        function renderRecords() {
+            const type = document.getElementById('filterType').value;
+            const cat = document.getElementById('filterCategory').value;
+            const list = document.getElementById('recordsList');
+            let filtered = records;
+            if (type !== 'all') filtered = filtered.filter(r => r.type === type);
+            if (cat !== 'all') filtered = filtered.filter(r => r.category === cat);
+            filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+            list.innerHTML = filtered.map(r => `<div class="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 border-l-4 ${r.type === 'income' ? 'border-green-500' : 'border-red-500'}">
+                <div><div class="font-medium">${r.category} ${r.note ? '- ' + r.note : ''}</div><div class="text-xs text-gray-500">${r.date}</div></div>
+                <div class="flex items-center gap-3"><span class="font-bold ${r.type === 'income' ? 'text-green-600' : 'text-red-600'}">${r.type === 'income' ? '+' : '-'}¥${r.amount.toFixed(2)}</span><button onclick="deleteRecord(${r.id})" class="text-red-400 hover:text-red-600"><i class="fa fa-trash"></i></button></div>
+            </div>`).join('');
+            document.getElementById('totalRecords').textContent = records.length;
+        }
+
+        function deleteRecord(id) { records = records.filter(r => r.id !== id); save(); renderRecords(); renderDashboard(); }
+
+        function setYear(delta) { currentYear += delta; renderDashboard(); }
+        document.getElementById('yearDisplay').textContent = currentYear;
+
+        function calculateHealthScore(income, expense, monthlyRecords) {
+            let score = 100;
+            const net = income - expense;
+            // 现金流影响
+            if (net < cashflowThreshold) score -= 20;
+            if (net < 0) score -= 30;
+            // 收入稳定性
+            const months = monthlyRecords.filter(r => r.type === 'income');
+            const avgIncome = income / 12;
+            if (avgIncome < 5000) score -= 15;
+            // 支出控制
+            const expenseRatio = expense / income;
+            if (expenseRatio > 0.7) score -= 10;
+            if (expenseRatio > 0.9) score -= 20;
+            // 盈利月数
+            const profitableMonths = months.reduce((acc, m) => {
+                const monthIncome = m.amount || 0;
+                return acc + (monthIncome > 0 ? 1 : 0);
+            }, 0);
+            if (profitableMonths < 6) score -= 10;
+
+            return Math.max(0, Math.min(100, score));
+        }
+
+        function renderDashboard() {
+            document.getElementById('yearDisplay').textContent = currentYear;
+            const income = records.filter(r => r.type === 'income').reduce((s, r) => s + r.amount, 0);
+            const expense = records.filter(r => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+            const netCashflow = income - expense;
+
+            document.getElementById('totalIncome').textContent = '¥' + income.toFixed(2);
+            document.getElementById('totalExpense').textContent = '¥' + expense.toFixed(2);
+            document.getElementById('netCashflow').textContent = '¥' + netCashflow.toFixed(2);
+
+            // 现金流预警
+            const warningEl = document.getElementById('cashflowWarning');
+            const alertEl = document.getElementById('cashflowAlert');
+            if (netCashflow < cashflowThreshold) {
+                warningEl.textContent = '预警';
+                warningEl.className = 'text-2xl font-bold text-red-600';
+                alertEl.classList.add('bg-red-50');
+            } else {
+                warningEl.textContent = '正常';
+                warningEl.className = 'text-2xl font-bold text-green-600';
+                alertEl.classList.remove('bg-red-50');
+            }
+
+            // 财务健康度评分
+            const healthScore = calculateHealthScore(income, expense, records);
+            const healthEl = document.getElementById('healthScore');
+            healthEl.textContent = healthScore + '/100';
+            healthEl.className = healthScore >= 80 ? 'text-2xl font-bold text-green-600' : healthScore >= 50 ? 'text-2xl font-bold text-yellow-600' : 'text-2xl font-bold text-red-600';
+
+            // 收支趋势折线图
+            const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+            const incData = months.map((_, i) => records.filter(r => r.type === 'income' && new Date(r.date).getFullYear() === currentYear && new Date(r.date).getMonth() === i).reduce((s, r) => s + r.amount, 0));
+            const expData = months.map((_, i) => records.filter(r => r.type === 'expense' && new Date(r.date).getFullYear() === currentYear && new Date(r.date).getMonth() === i).reduce((s, r) => s + r.amount, 0));
+            const profitData = months.map((_, i) => incData[i] - expData[i]);
+
+            if (trendChartInstance) trendChartInstance.destroy();
+            const ctx1 = document.getElementById('trendChart').getContext('2d');
+            trendChartInstance = new Chart(ctx1, {
+                type: 'line',
+                data: { labels: months, datasets: [{ label: '收入', data: incData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true }, { label: '支出', data: expData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true }, { label: '利润', data: profitData, borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', fill: true }] },
+                options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { position: 'top' } } }
+            });
+
+            // 饼图
+            const expByCat = {};
+            records.filter(r => r.type === 'expense').forEach(r => { expByCat[r.category] = (expByCat[r.category] || 0) + r.amount; });
+            const pieLabels = Object.keys(expByCat), pieData = Object.values(expByCat);
+            if (pieChartInstance) pieChartInstance.destroy();
+            const ctx2 = document.getElementById('pieChart').getContext('2d');
+            pieChartInstance = new Chart(ctx2, { type: 'pie', data: { labels: pieLabels.length ? pieLabels : ['无数据'], datasets: [{ data: pieData.length ? pieData : [1], backgroundColor: ['#4f46e5','#06b6d4','#f59e0b','#ef4444','#10b981','#8b5cf6'] }] } });
+
+            // 柱状图（月度利润）
+            if (barChartInstance) barChartInstance.destroy();
+            const ctx3 = document.getElementById('barChart').getContext('2d');
+            barChartInstance = new Chart(ctx3, { type: 'bar', data: { labels: months, datasets: [{ label: '利润', data: profitData, backgroundColor: profitData.map(p => p >= 0 ? '#10b981' : '#ef4444') }] }, options: { responsive: true, scales: { y: { beginAtZero: true } } } });
+
+            // 年度表
+            const tbody = document.getElementById('yearTable');
+            tbody.innerHTML = months.map((m, i) => {
+                const inc = records.filter(r => r.type === 'income' && new Date(r.date).getFullYear() === currentYear && new Date(r.date).getMonth() === i).reduce((s, r) => s + r.amount, 0);
+                const exp = records.filter(r => r.type === 'expense' && new Date(r.date).getFullYear() === currentYear && new Date(r.date).getMonth() === i).reduce((s, r) => s + r.amount, 0);
+                const bal = inc - exp;
+                // 环比计算
+                const prevInc = i > 0 ? records.filter(r => r.type === 'income' && new Date(r.date).getFullYear() === currentYear && new Date(r.date).getMonth() === i-1).reduce((s, r) => s + r.amount, 0) : 0;
+                const prevExp = i > 0 ? records.filter(r => r.type === 'expense' && new Date(r.date).getFullYear() === currentYear && new Date(r.date).getMonth() === i-1).reduce((s, r) => s + r.amount, 0) : 0;
+                const prevBal = prevInc - prevExp;
+                let compStr = '-';
+                if (i > 0 && prevBal !== 0) {
+                    const change = ((bal - prevBal) / Math.abs(prevBal) * 100).toFixed(1);
+                    compStr = (bal > prevBal ? '+' : '') + change + '%';
+                }
+                return `<tr class="border-b"><td class="p-2">${m}</td><td class="p-2 text-right text-green-600">¥${inc.toFixed(2)}</td><td class="p-2 text-right text-red-600">¥${exp.toFixed(2)}</td><td class="p-2 text-right ${bal >= 0 ? 'text-green-600' : 'text-red-600'}">¥${bal.toFixed(2)}</td><td class="p-2 text-right text-gray-500">${compStr}</td></tr>`;
+            }).join('');
+        }
+
+        // ====== 月度对比 ======
+        function initCompareMonths() {
+            const now = new Date();
+            const thisMonth = now.toISOString().slice(0, 7);
+            const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1).toISOString().slice(0, 7);
+            document.getElementById('compareMonthA').value = lastMonth;
+            document.getElementById('compareMonthB').value = thisMonth;
+        }
+
+        function compareMonths() {
+            const monthA = document.getElementById('compareMonthA').value;
+            const monthB = document.getElementById('compareMonthB').value;
+            if (!monthA || !monthB) { alert('请选择两个月份'); return; }
+
+            const parseMonth = m => { const [y, mo] = m.split('-'); return { year: parseInt(y), month: parseInt(mo) - 1 }; };
+            const mA = parseMonth(monthA), mB = parseMonth(monthB);
+
+            const incA = records.filter(r => r.type === 'income' && new Date(r.date).getFullYear() === mA.year && new Date(r.date).getMonth() === mA.month).reduce((s, r) => s + r.amount, 0);
+            const expA = records.filter(r => r.type === 'expense' && new Date(r.date).getFullYear() === mA.year && new Date(r.date).getMonth() === mA.month).reduce((s, r) => s + r.amount, 0);
+            const balA = incA - expA;
+
+            const incB = records.filter(r => r.type === 'income' && new Date(r.date).getFullYear() === mB.year && new Date(r.date).getMonth() === mB.month).reduce((s, r) => s + r.amount, 0);
+            const expB = records.filter(r => r.type === 'expense' && new Date(r.date).getFullYear() === mB.year && new Date(r.date).getMonth() === mB.month).reduce((s, r) => s + r.amount, 0);
+            const balB = incB - expB;
+
+            const incChange = incA > 0 ? ((incB - incA) / incA * 100).toFixed(1) : 'N/A';
+            const expChange = expA > 0 ? ((expB - expA) / expA * 100).toFixed(1) : 'N/A';
+            const balChange = balA !== 0 ? ((balB - balA) / Math.abs(balA) * 100).toFixed(1) : 'N/A';
+
+            const resultDiv = document.getElementById('compareResult');
+            resultDiv.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-blue-50 rounded-xl p-4 text-center border border-blue-100">
+                        <div class="font-bold text-blue-700 mb-2">${monthA}</div>
+                        <div class="text-sm text-gray-600">收入 ¥${incA.toFixed(2)}</div>
+                        <div class="text-sm text-gray-600">支出 ¥${expA.toFixed(2)}</div>
+                        <div class="font-bold ${balA >= 0 ? 'text-green-600' : 'text-red-600'}">结余 ¥${balA.toFixed(2)}</div>
+                    </div>
+                    <div class="bg-green-50 rounded-xl p-4 text-center border border-green-100">
+                        <div class="font-bold text-green-700 mb-2">${monthB}</div>
+                        <div class="text-sm text-gray-600">收入 ¥${incB.toFixed(2)}</div>
+                        <div class="text-sm text-gray-600">支出 ¥${expB.toFixed(2)}</div>
+                        <div class="font-bold ${balB >= 0 ? 'text-green-600' : 'text-red-600'}">结余 ¥${balB.toFixed(2)}</div>
+                    </div>
+                </div>
+                <div class="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                    <h4 class="font-bold text-amber-700 mb-2">环比变化分析</h4>
+                    <div class="grid grid-cols-3 gap-3 text-sm">
+                        <div class="text-center"><div class="text-gray-500">收入变化</div><div class="font-bold ${incB >= incA ? 'text-green-600' : 'text-red-600'}">${typeof incChange === 'string' && incChange !== 'N/A' ? (incB >= incA ? '+' : '') : ''}${incChange}%</div></div>
+                        <div class="text-center"><div class="text-gray-500">支出变化</div><div class="font-bold ${expB <= expA ? 'text-green-600' : 'text-red-600'}">${typeof expChange === 'string' && expChange !== 'N/A' ? (expB > expA ? '+' : '') : ''}${expChange}%</div></div>
+                        <div class="text-center"><div class="text-gray-500">利润变化</div><div class="font-bold ${balB >= balA ? 'text-green-600' : 'text-red-600'}">${typeof balChange === 'string' && balChange !== 'N/A' ? (balB >= balA ? '+' : '') : ''}${balChange}%</div></div>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">
+                        ${generateCompareAnalysis(incA, incB, expA, expB, balA, balB)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function generateCompareAnalysis(incA, incB, expA, expB, balA, balB) {
+            let analysis = '';
+            if (incB > incA * 1.2) analysis += '收入增长显著，说明业务拓展良好。';
+            else if (incB < incA * 0.8) analysis += '收入有所下滑，需关注业务来源。';
+            if (expB > expA * 1.1) analysis += '支出增幅较大，建议检查支出明细。';
+            else if (expB < expA * 0.9) analysis += '支出控制良好，成本管理有效。';
+            if (balB > balA) analysis += '整体盈利能力提升，财务状况向好。';
+            else if (balB < 0 && balB < balA) analysis += '本月亏损加剧，需尽快调整收支结构。';
+            if (!analysis) analysis = '财务状况基本稳定，继续保持当前节奏。';
+            return analysis;
+        }
+
+        function exportCSV() {
+            const header = '类型,分类,金额,日期,备注\n';
+            const csv = header + records.map(r => `${r.type === 'income' ? '收入' : '支出'},${r.category},${r.amount},${r.date},"${r.note}"`).join('\n');
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = '财务数据_' + new Date().toISOString().slice(0,10) + '.csv'; link.click();
+        }
+
+        function clearAllData() { if (confirm('确定清空所有数据？此操作不可撤销！')) { records = []; save(); renderRecords(); renderDashboard(); } }
+
+        // ========== 项目收支分析 ==========
+        function renderProjectAnalysis() {
+            const categories = [...new Set(records.map(r => r.category))];
+            if (categories.length === 0) {
+                document.getElementById('projectTable').innerHTML = '<div class="text-center text-gray-400 py-8">暂无数据</div>';
+                return;
+            }
+
+            const projectData = categories.map(cat => {
+                const inc = records.filter(r => r.category === cat && r.type === 'income').reduce((s, r) => s + r.amount, 0);
+                const exp = records.filter(r => r.category === cat && r.type === 'expense').reduce((s, r) => s + r.amount, 0);
+                const profit = inc - exp;
+                const count = records.filter(r => r.category === cat).length;
+                const lastDate = records.filter(r => r.category === cat).sort((a, b) => new Date(b.date) - new Date(a.date))[0]?.date || '-';
+                const profitability = exp > 0 ? ((profit / exp) * 100).toFixed(1) : (inc > 0 ? 'N/A' : '0');
+                return { category: cat, income: inc, expense: exp, profit, count, lastDate, profitability };
+            }).sort((a, b) => b.profit - a.profit);
+
+            // 表格
+            const table = document.getElementById('projectTable');
+            table.innerHTML = `
+                <table class="w-full text-sm">
+                    <thead><tr class="bg-gray-100">
+                        <th class="p-2 text-left">项目/分类</th>
+                        <th class="p-2 text-right">收入</th>
+                        <th class="p-2 text-right">支出</th>
+                        <th class="p-2 text-right">利润</th>
+                        <th class="p-2 text-right">利润率</th>
+                        <th class="p-2 text-center">笔数</th>
+                        <th class="p-2 text-center">最近交易</th>
+                    </tr></thead>
+                    <tbody>${projectData.map(d => `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-2 font-medium">${d.category}</td>
+                            <td class="p-2 text-right text-green-600">¥${d.income.toFixed(2)}</td>
+                            <td class="p-2 text-right text-red-600">¥${d.expense.toFixed(2)}</td>
+                            <td class="p-2 text-right font-medium ${d.profit >= 0 ? 'text-green-600' : 'text-red-600'}">¥${d.profit.toFixed(2)}</td>
+                            <td class="p-2 text-right ${d.profitability === 'N/A' ? 'text-gray-400' : d.profitability >= 0 ? 'text-green-600' : 'text-red-600'}">${d.profitability === 'N/A' ? '-' : d.profitability + '%'}</td>
+                            <td class="p-2 text-center">${d.count}笔</td>
+                            <td class="p-2 text-center text-xs text-gray-500">${d.lastDate}</td>
+                        </tr>
+                    `).join('')}</tbody>
+                </table>
+            `;
+
+            // 柱状图
+            if (projectBarChartInstance) projectBarChartInstance.destroy();
+            projectBarChartInstance = new Chart(document.getElementById('projectBarChart'), {
+                type: 'bar',
+                data: {
+                    labels: projectData.map(d => d.category),
+                    datasets: [
+                        { label: '收入', data: projectData.map(d => d.income), backgroundColor: '#10b981' },
+                        { label: '支出', data: projectData.map(d => d.expense), backgroundColor: '#ef4444' },
+                        { label: '利润', data: projectData.map(d => d.profit), backgroundColor: '#6366f1' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true } },
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+
+            // 饼图（收入占比）
+            if (projectPieChartInstance) projectPieChartInstance.destroy();
+            const colors = ['#4f46e5','#06b6d4','#f59e0b','#ef4444','#10b981','#8b5cf6','#ec4899','#f97316','#14b8a6','#6b7280'];
+            projectPieChartInstance = new Chart(document.getElementById('projectPieChart'), {
+                type: 'pie',
+                data: {
+                    labels: projectData.filter(d => d.income > 0).map(d => d.category),
+                    datasets: [{ data: projectData.filter(d => d.income > 0).map(d => d.income), backgroundColor: colors }]
+                },
+                options: { plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }, title: { display: true, text: '各项目收入占比' } } }
+            });
+        }
+
+        // ========== 税务预估 ==========
+        function initTax() {
+            const yearSel = document.getElementById('taxYear');
+            const curYear = new Date().getFullYear();
+            yearSel.innerHTML = '';
+            for (let y = curYear; y >= curYear - 3; y--) {
+                yearSel.innerHTML += `<option value="${y}">${y}年</option>`;
+            }
+            calcTax();
+        }
+
+        function calcTax() {
+            const year = parseInt(document.getElementById('taxYear').value);
+            const taxType = document.getElementById('taxType').value;
+            const deduction = parseFloat(document.getElementById('taxDeduction').value) || 0;
+            const vatType = document.getElementById('vatType').value;
+
+            // 计算当年收入和支出
+            const annualIncome = records.filter(r => r.type === 'income' && new Date(r.date).getFullYear() === year).reduce((s, r) => s + r.amount, 0);
+            const annualExpense = records.filter(r => r.type === 'expense' && new Date(r.date).getFullYear() === year).reduce((s, r) => s + r.amount, 0);
+            const profit = annualIncome - annualExpense;
+
+            if (annualIncome === 0) {
+                document.getElementById('taxResult').innerHTML = '<div class="text-center text-gray-400 py-8">该年度暂无收入数据，无法估算税费</div>';
+                return;
+            }
+
+            // 增值税估算
+            let vat = 0;
+            if (vatType === 'small') {
+                vat = annualIncome * 0.01; // 小规模减按1%
+            } else {
+                // 一般纳税人按6%估算（服务类常见税率）
+                vat = annualIncome * 0.06 - annualExpense * 0.06;
+                vat = Math.max(0, vat);
+            }
+
+            // 附加税（增值税的12%减半征收）
+            const surtax = vat * 0.06;
+
+            // 个人所得税/企业所得税
+            let incomeTax = 0;
+            let taxRate = '';
+            let taxDesc = '';
+
+            if (taxType === 'individual') {
+                // 个体工商户：经营所得，适用5-35%超额累进税率
+                const taxableIncome = Math.max(0, annualIncome - deduction);
+                const rates = [
+                    { up: 30000, rate: 0.05, quick: 0 },
+                    { up: 90000, rate: 0.10, quick: 1500 },
+                    { up: 300000, rate: 0.20, quick: 10500 },
+                    { up: 500000, rate: 0.30, quick: 40500 },
+                    { up: Infinity, rate: 0.35, quick: 65500 }
+                ];
+                for (const r of rates) {
+                    if (taxableIncome <= r.up) {
+                        incomeTax = taxableIncome * r.rate - r.quick;
+                        taxRate = (r.rate * 100).toFixed(0) + '%';
+                        taxDesc = '经营所得超额累进税率';
+                        break;
+                    }
+                }
+                incomeTax = Math.max(0, incomeTax);
+            } else if (taxType === 'company_small') {
+                // 小型微利企业：利润≤100万部分减按25%计入，按20%税率
+                if (profit > 0) {
+                    if (profit <= 1000000) {
+                        incomeTax = profit * 0.25 * 0.20;
+                        taxRate = '5%（小微企业优惠）';
+                        taxDesc = '小型微利企业优惠税率';
+                    } else {
+                        incomeTax = 1000000 * 0.25 * 0.20 + (profit - 1000000) * 0.50 * 0.20;
+                        taxRate = '5%-10%（小微企业优惠）';
+                        taxDesc = '小型微利企业优惠税率';
+                    }
+                }
+            } else if (taxType === 'company_general') {
+                // 一般企业：25%税率
+                if (profit > 0) {
+                    incomeTax = profit * 0.25;
+                    taxRate = '25%';
+                    taxDesc = '企业所得税标准税率';
+                }
+            }
+
+            incomeTax = Math.max(0, incomeTax);
+            const totalTax = vat + surtax + incomeTax;
+            const netIncome = profit - totalTax;
+            const taxBurden = annualIncome > 0 ? (totalTax / annualIncome * 100) : 0;
+
+            // 渲染结果
+            const resultDiv = document.getElementById('taxResult');
+            resultDiv.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="bg-blue-50 rounded-xl p-4 text-center border border-blue-100">
+                        <div class="text-xs text-gray-500 mb-1">年度收入</div>
+                        <div class="text-2xl font-bold text-blue-600">¥${annualIncome.toFixed(2)}</div>
+                    </div>
+                    <div class="bg-red-50 rounded-xl p-4 text-center border border-red-100">
+                        <div class="text-xs text-gray-500 mb-1">年度支出</div>
+                        <div class="text-2xl font-bold text-red-600">¥${annualExpense.toFixed(2)}</div>
+                    </div>
+                    <div class="bg-green-50 rounded-xl p-4 text-center border border-green-100">
+                        <div class="text-xs text-gray-500 mb-1">年度利润</div>
+                        <div class="text-2xl font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}">¥${profit.toFixed(2)}</div>
+                    </div>
+                </div>
+
+                <div class="border rounded-xl overflow-hidden mb-4">
+                    <div class="p-3 bg-indigo-50 border-b">
+                        <h4 class="font-bold text-indigo-800"><i class="fa fa-calculator mr-2"></i>税费明细估算</h4>
+                    </div>
+                    <div class="p-4 space-y-3">
+                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <div><span class="font-medium">增值税</span><span class="text-xs text-gray-500 ml-2">(${vatType === 'small' ? '小规模1%' : '一般6%'})</span></div>
+                            <span class="font-bold text-orange-600">¥${vat.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <div><span class="font-medium">附加税</span><span class="text-xs text-gray-500 ml-2">(增值税的6%减半)</span></div>
+                            <span class="font-bold text-orange-600">¥${surtax.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <div><span class="font-medium">所得税</span><span class="text-xs text-gray-500 ml-2">(${taxRate} - ${taxDesc})</span></div>
+                            <span class="font-bold text-orange-600">¥${incomeTax.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-indigo-50 rounded-lg">
+                            <div><span class="font-bold text-lg">预估税费合计</span></div>
+                            <span class="font-bold text-2xl text-indigo-600">¥${totalTax.toFixed(2)}</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                            <div><span class="font-bold text-lg">预估税后净利润</span></div>
+                            <span class="font-bold text-2xl ${netIncome >= 0 ? 'text-green-600' : 'text-red-600'}">¥${netIncome.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-3 bg-gray-50 rounded-lg text-center">
+                        <div class="text-xs text-gray-500">综合税负率</div>
+                        <div class="text-xl font-bold ${taxBurden < 10 ? 'text-green-600' : taxBurden < 20 ? 'text-orange-600' : 'text-red-600'}">${taxBurden.toFixed(1)}%</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded-lg text-center">
+                        <div class="text-xs text-gray-500">有效税率</div>
+                        <div class="text-xl font-bold text-indigo-600">${profit > 0 ? (incomeTax / profit * 100).toFixed(1) : 0}%</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // init
+        updateCategories();
+        renderDashboard();
+        renderRecords();
+        initTax();
+    </script>
+</body>
+</html>
